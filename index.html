@@ -1,0 +1,101 @@
+<!-- Adapted from https://github.com/haskell-wasm/zurihac-2025/blob/437073d0b774fc1b583c58df8e4e0bfce6a810c8/lesson2/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ghc-wasm-graphics</title>
+
+    <!-- Load the script as early and asynchronously as possible -->
+    <script async type="module">
+      import {
+        WASI,
+        OpenFile,
+        File,
+        ConsoleStdout,
+      } from "https://cdn.jsdelivr.net/npm/@bjorn3/browser_wasi_shim@0.4.1/+esm";
+      import ghc_wasm_jsffi from "./dist/ghc_wasm_jsffi.js";
+
+      const args = ["ghc-wasm-graphics.wasm", "+RTS", "-H64m", "-RTS"];
+      const env = [];
+      const in_file = new File(new Uint8Array(), {
+        readonly: true,
+      });
+      const fds = [
+        new OpenFile(new File(new Uint8Array(), { readonly: true })),
+        ConsoleStdout.lineBuffered((msg) =>
+          console.info(`[WASI stdout] ${msg}`)
+        ),
+        ConsoleStdout.lineBuffered((msg) =>
+          console.error(`[WASI stderr] ${msg}`)
+        ),
+      ];
+      const options = { debug: false };
+      const wasi = new WASI(args, env, fds, options);
+
+      // See
+      // https://ghc.gitlab.haskell.org/ghc/doc/users_guide/wasm.html#the-javascript-api
+      // for explanation of the knot-tying here.
+      const instance_exports = {};
+      const { instance } = await WebAssembly.instantiateStreaming(
+        fetch("./dist/mandelbrot.wasm"),
+        {
+          wasi_snapshot_preview1: wasi.wasiImport,
+          ghc_wasm_jsffi: ghc_wasm_jsffi(instance_exports),
+        }
+      );
+      Object.assign(instance_exports, instance.exports);
+
+      wasi.initialize(instance);
+
+      // Wait for the DOM to be ready
+      if (document.readyState === "loading") {
+        await new Promise((res) =>
+          document.addEventListener("DOMContentLoaded", res, { once: true })
+        );
+      };
+
+      const setText = (elementId, text) => document.getElementById(elementId).textContent = text;
+
+      const description = instance_exports.get_description();
+      setText("description", description);
+
+      setText("status", "Initializing runtime…");
+
+      instance_exports.hs_init();
+
+      setText("status", "Rendering…");
+
+      const height = 180;
+      const width = 300;
+
+      const canvas = document.getElementById("demo-canvas");
+      canvas.height = height;
+      canvas.width = width;
+
+      const t0 = performance.now();
+      const buffer_address = await instance_exports.render_image(height, width);
+      const t1 = performance.now();
+
+      setText("status", `Rendered in ${Math.round(t1 - t0)} ms.`);
+
+      const image = new ImageData(
+          new Uint8ClampedArray(
+              instance_exports.memory.buffer,
+              buffer_address,
+              4 * width * height
+          ),
+          width,
+      );
+
+      const ctx = canvas.getContext("2d");
+      ctx.putImageData(image, 0, 0);
+
+    </script>
+  </head>
+  <body>
+    <h1>ghc-wasm-graphics</h1>
+    <h3><div id="description"></div></h3>
+    <div id="status">Loading…</div>
+    <canvas id="demo-canvas"></canvas>
+  </body>
+</html>

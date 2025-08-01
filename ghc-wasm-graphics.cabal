@@ -1,0 +1,27 @@
+cabal-version: 3.4
+name:          ghc-wasm-graphics
+version:       0.1.0.0
+
+library
+  exposed-modules:  Lib
+  build-depends:    base
+  default-language: GHC2021
+  ghc-options:      -Wall
+  hs-source-dirs:   src
+
+executable mandelbrot
+  build-depends:
+    , base
+    , ghc-wasm-graphics
+    , ghc-experimental
+
+  default-language: GHC2021
+  ghc-options:
+    -Wall
+    -Wno-name-shadowing
+    -no-hs-main
+    -optl-mexec-model=reactor
+    -optl-Wl,--export=hs_init,--export=render_image
+
+  hs-source-dirs:   app
+  main-is:          Mandelbrot.hs
