@@ -3,13 +3,15 @@ name:          ghc-wasm-graphics
 version:       0.1.0.0
 
 library
-  exposed-modules:  Lib
+  exposed-modules:
+    Lib
+    Lib.Animation
   build-depends:    base
   default-language: GHC2021
   ghc-options:      -Wall
   hs-source-dirs:   src
 
-executable mandelbrot
+executable app
   build-depends:
     , base
     , ghc-wasm-graphics
@@ -21,7 +23,7 @@ executable mandelbrot
     -Wno-name-shadowing
     -no-hs-main
     -optl-mexec-model=reactor
-    -optl-Wl,--export=hs_init,--export=render_image
+    -optl-Wl,--export=hs_init,--export=render_image,--export=get_buffer,--export=render_frame
 
   hs-source-dirs:   app
-  main-is:          Mandelbrot.hs
+  main-is:          Main.hs

@@ -37,7 +37,7 @@
       // for explanation of the knot-tying here.
       const instance_exports = {};
       const { instance } = await WebAssembly.instantiateStreaming(
-        fetch("./dist/mandelbrot.wasm"),
+        fetch("./dist/app.wasm"),
         {
           wasi_snapshot_preview1: wasi.wasiImport,
           ghc_wasm_jsffi: ghc_wasm_jsffi(instance_exports),
@@ -68,7 +68,7 @@
       const height = 180;
       const width = 300;
 
-      const canvas = document.getElementById("demo-canvas");
+      const canvas = document.getElementById("canvas1");
       canvas.height = height;
       canvas.width = width;
 
@@ -90,12 +90,59 @@
       const ctx = canvas.getContext("2d");
       ctx.putImageData(image, 0, 0);
 
+      ///////////////
+      // Animation //
+      ///////////////
+
+      const canvas2 = document.getElementById("canvas2");
+      canvas2.height = instance_exports.get_height();
+      canvas2.width = instance_exports.get_width();
+
+      const buffer_address_2 = instance_exports.get_buffer();
+
+      const image2 = new ImageData(
+          new Uint8ClampedArray(
+              instance_exports.memory.buffer,
+              buffer_address_2,
+              4 * canvas2.width * canvas2.height
+          ),
+          canvas2.width,
+      );
+
+      const ctx2 = canvas2.getContext("2d");
+
+      var lastRender = performance.now();
+      var lastUpdate = performance.now();
+      var frame = 0;
+
+      const render = () => {
+        const t = performance.now()
+        const dt = t - lastRender
+        instance_exports.render_frame(dt / 1000.0);
+        ctx2.putImageData(image2, 0, 0);
+        frame++;
+
+        if (frame == 60) {
+            const fps = 60 / (t - lastUpdate) * 1000;
+            setText("fps", Math.round(fps * 10) / 10);
+            frame = 0;
+            lastUpdate = t;
+        }
+
+        lastRender = t;
+        requestAnimationFrame(render);
+      }
+
+      render();
+
     </script>
   </head>
   <body>
     <h1>ghc-wasm-graphics</h1>
     <h3><div id="description"></div></h3>
     <div id="status">Loading…</div>
-    <canvas id="demo-canvas"></canvas>
+    <canvas id="canvas1"></canvas>
+    <div>FPS: <span id="fps"></span></div>
+    <canvas id="canvas2"></canvas>
   </body>
 </html>
