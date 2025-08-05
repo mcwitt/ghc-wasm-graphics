@@ -59,8 +59,8 @@ renderToBuffer (MkImage height width rgbaAt) ptr = do
   mapM_
     (\pos -> setPixel width ptr pos $ rgbaAt pos)
     [ V2 x y
-      | x <- [0 .. width - 1],
-        y <- [0 .. height - 1]
+      | y <- [0 .. height - 1],
+        x <- [0 .. width - 1]
     ]
 
 rectangle :: Int -> Int -> Image
@@ -95,4 +95,4 @@ mandelbrot height width = MkImage height width rgbaAt
           let scale :: Double = fromIntegral $ maxBound @Word8
            in round (scale * fromIntegral a / fromIntegral b)
 
-        mkColor alpha = MkRGBA 0 0 maxBound alpha
+        mkColor = MkRGBA 0 0 maxBound

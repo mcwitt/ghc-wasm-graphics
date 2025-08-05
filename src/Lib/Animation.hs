@@ -12,7 +12,7 @@ height = 200
 width = 200
 
 radius :: Double
-radius = 10.0
+radius = 10
 
 buffer :: Ptr Word8
 {-# NOINLINE buffer #-}
@@ -22,16 +22,16 @@ newtype Position = MkPosition (V2 Double)
 
 newtype Velocity = MkVelocity (V2 Double)
 
-getFrame :: Position -> Image
-getFrame (MkPosition (V2 xb yb)) =
+getFrame :: World -> Image
+getFrame (MkParticle (MkPosition (V2 xp yp)) _) =
   MkImage
     height
     width
     ( \(V2 x y) ->
-        let dx = fromIntegral x - xb
-            dy = fromIntegral y - yb
+        let dx = fromIntegral x - xp
+            dy = fromIntegral y - yp
             dr = sqrt (dx ** 2 + dy ** 2)
-         in blend foreground background (s1 (dr - radius))
+         in blend fg bg (s1 (dr - radius))
     )
   where
     s1 x
@@ -39,17 +39,19 @@ getFrame (MkPosition (V2 xb yb)) =
       | 0 <= x && x <= 1 = 3 * x ** 2 - 2 * x ** 3
       | otherwise = 1.0
 
-    foreground = MkRGBA maxBound 0 0 maxBound
-    background = MkRGBA 0 0 0 maxBound
+    fg = MkRGBA maxBound 0 0 maxBound
+    bg = MkRGBA 0 0 0 maxBound
 
-data BoxState = MkBoxState Position Velocity
+data Particle = MkParticle !Position !Velocity
 
-boxState :: IORef BoxState
-{-# NOINLINE boxState #-}
-boxState =
+type World = Particle
+
+world :: IORef World
+{-# NOINLINE world #-}
+world =
   unsafePerformIO
     ( newIORef
-        ( MkBoxState
+        ( MkParticle
             (MkPosition (V2 radius radius))
             (MkVelocity (V2 50 67))
         )
@@ -57,23 +59,24 @@ boxState =
 
 renderFrame :: Double -> IO ()
 renderFrame dt = do
-  s@(MkBoxState pos _) <- readIORef boxState
-  let s' = updateBoxState s
-  let frame = getFrame pos
+  w <- readIORef world
+  let w' = updateParticle w
+  let frame = getFrame w
   renderToBuffer frame buffer
-  writeIORef boxState s'
+  writeIORef world w'
   where
-    updateBoxState :: BoxState -> BoxState
-    updateBoxState (MkBoxState (MkPosition (V2 x y)) vel@(MkVelocity (V2 vx vy)))
-      | x' < radius || x' >= fromIntegral width - radius =
-          MkBoxState
-            (MkPosition (V2 x y'))
+    updateParticle (MkParticle (MkPosition (V2 x y)) vel@(MkVelocity (V2 vx vy)))
+      | vx < 0 && x' < radius = MkParticle (MkPosition (V2 (2 * radius - x') y')) (MkVelocity (V2 (-vx) vy))
+      | vy < 0 && y' < radius = MkParticle (MkPosition (V2 x' (2 * radius - y'))) (MkVelocity (V2 vx (-vy)))
+      | 0 < vx && fromIntegral width - radius < x' =
+          MkParticle
+            (MkPosition (V2 (2 * (fromIntegral width - radius) - x') y'))
             (MkVelocity (V2 (-vx) vy))
-      | y' < radius || y' >= fromIntegral width - radius =
-          MkBoxState
-            (MkPosition (V2 x' y))
+      | 0 < vy && fromIntegral height - radius < y' =
+          MkParticle
+            (MkPosition (V2 x' (2 * (fromIntegral height - radius) - y')))
             (MkVelocity (V2 vx (-vy)))
-      | otherwise = MkBoxState (MkPosition (V2 x' y')) vel
+      | otherwise = MkParticle (MkPosition (V2 x' y')) vel
       where
         x' = x + vx * dt
         y' = y + vy * dt
